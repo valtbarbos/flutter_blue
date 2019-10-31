@@ -240,6 +240,11 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
             {
                 if (ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION)
                         != PackageManager.PERMISSION_GRANTED) {
+                    Activity activity = registrar.activity();
+                    if (activity == null) {
+                        log(LogLevel.ERROR, "Can't request permissions without activity");
+                        return;
+                    }
                     ActivityCompat.requestPermissions(
                             activity,
                             new String[] {
@@ -303,9 +308,9 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
                 // New request, connect and add gattServer to Map
                 BluetoothGatt gattServer;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    gattServer = device.connectGatt(activity, options.getAndroidAutoConnect(), mGattCallback, BluetoothDevice.TRANSPORT_LE);
+                    gattServer = device.connectGatt(registrar.activeContext(), options.getAndroidAutoConnect(), mGattCallback, BluetoothDevice.TRANSPORT_LE);
                 } else {
-                    gattServer = device.connectGatt(activity, options.getAndroidAutoConnect(), mGattCallback);
+                    gattServer = device.connectGatt(registrar.activeContext(), options.getAndroidAutoConnect(), mGattCallback);
                 }
                 mDevices.put(deviceId, new BluetoothDeviceCache(gattServer));
                 result.success(null);
@@ -711,13 +716,13 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         public void onListen(Object o, EventChannel.EventSink eventSink) {
             sink = eventSink;
             IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-            activity.registerReceiver(mReceiver, filter);
+            registrar.activeContext().registerReceiver(mReceiver, filter);
         }
 
         @Override
         public void onCancel(Object o) {
             sink = null;
-            activity.unregisterReceiver(mReceiver);
+            registrar.activeContext().unregisterReceiver(mReceiver);
         }
     };
 
@@ -969,13 +974,18 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
     }
 
     private void invokeMethodUIThread(final String name, final byte[] byteArray) {
-        activity.runOnUiThread(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                        channel.invokeMethod(name, byteArray);
-                    }
-                });
+        Activity activity = registrar.activity();
+        if (activity == null) {
+            channel.invokeMethod(name, byteArray);
+        } else {
+            activity.runOnUiThread(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            channel.invokeMethod(name, byteArray);
+                        }
+                    });
+        }
     }
 
     // BluetoothDeviceCache contains any other cached information not stored in Android Bluetooth API
