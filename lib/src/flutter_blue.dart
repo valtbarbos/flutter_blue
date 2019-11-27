@@ -56,6 +56,10 @@ class FlutterBlue {
         .map((s) => BluetoothState.values[s.state.value]);
   }
 
+  /// Sets a unique id (required on iOS for restoring app on background-scan)
+  /// should be called before any other methods.
+  Future setUniqueId(String uniqueid) => _channel.invokeMethod('setUniqueId',uniqueid.toString());
+  
   /// Retrieve a list of connected devices
   Future<List<BluetoothDevice>> get connectedDevices {
     return _channel
