@@ -375,6 +375,11 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
   NSLog(@"didConnectPeripheral");
   // Register self as delegate for peripheral
   peripheral.delegate = self;
+
+  // Clear helper arrays and [peripheral discoverServices:nil];
+  [_servicesThatNeedDiscovered removeAllObjects];
+  [_characteristicsThatNeedDiscovered removeAllObjects ];
+  [peripheral discoverServices:nil];
   
   // Send initial mtu size
   uint32_t mtu = [self getMtu:peripheral];
@@ -387,8 +392,11 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 - (void)centralManager:(CBCentralManager *)central didDisconnectPeripheral:(CBPeripheral *)peripheral error:(NSError *)error {
   NSLog(@"didDisconnectPeripheral");
   // Unregister self as delegate for peripheral, not working #42
-  peripheral.delegate = nil;
+  peripheral.delegate = self;
   
+  // Try to reconnect
+  [self.centralManager connectPeripheral:peripheral options:nil];
+
   // Send connection state
   [_channel invokeMethod:@"DeviceState" arguments:[self toFlutterData:[self toDeviceStateProto:peripheral state:peripheral.state]]];
 }
