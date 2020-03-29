@@ -4,13 +4,11 @@
 
 part of flutter_blue;
 
-class FlutterBlue {
+class FlutterBlue implements IDeviceBluetoothDataSource {
   final MethodChannel _channel = const MethodChannel('$NAMESPACE/methods');
   final EventChannel _stateChannel = const EventChannel('$NAMESPACE/state');
-  final StreamController<MethodCall> _methodStreamController =
-      new StreamController.broadcast(); // ignore: close_sinks
-  Stream<MethodCall> get _methodStream => _methodStreamController
-      .stream; // Used internally to dispatch methods from platform.
+  final StreamController<MethodCall> _methodStreamController = new StreamController.broadcast(); // ignore: close_sinks
+  Stream<MethodCall> get _methodStream => _methodStreamController.stream; // Used internally to dispatch methods from platform.
 
   /// Singleton boilerplate
   FlutterBlue._() {
@@ -29,8 +27,7 @@ class FlutterBlue {
   LogLevel get logLevel => _logLevel;
 
   /// Checks whether the device supports Bluetooth
-  Future<bool> get isAvailable =>
-      _channel.invokeMethod('isAvailable').then<bool>((d) => d);
+  Future<bool> get isAvailable => _channel.invokeMethod('isAvailable').then<bool>((d) => d);
 
   /// Checks if Bluetooth functionality is turned on
   Future<bool> get isOn => _channel.invokeMethod('isOn').then<bool>((d) => d);
@@ -45,10 +42,7 @@ class FlutterBlue {
 
   /// Gets the current state of the Bluetooth module
   Stream<BluetoothState> get state async* {
-    yield await _channel
-        .invokeMethod('state')
-        .then((buffer) => new protos.BluetoothState.fromBuffer(buffer))
-        .then((s) => BluetoothState.values[s.state.value]);
+    yield await _channel.invokeMethod('state').then((buffer) => new protos.BluetoothState.fromBuffer(buffer)).then((s) => BluetoothState.values[s.state.value]);
 
     yield* _stateChannel
         .receiveBroadcastStream()
@@ -58,8 +52,15 @@ class FlutterBlue {
 
   /// Sets a unique id (required on iOS for restoring app on background-scan)
   /// should be called before any other methods.
-  Future setUniqueId(String uniqueid) => _channel.invokeMethod('setUniqueId',uniqueid.toString());
-  
+  Future setUniqueId(String uniqueid) {
+    try {
+      _channel.invokeMethod('setUniqueId', uniqueid.toString());
+    } catch (e) {
+      print('Error on setUniqueId');
+      throw e;
+    }
+  }
+
   /// Retrieve a list of connected devices
   Future<List<BluetoothDevice>> get connectedDevices {
     return _channel
@@ -106,9 +107,7 @@ class FlutterBlue {
       throw e;
     }
 
-    yield* Observable(FlutterBlue.instance._methodStream
-            .where((m) => m.method == "ScanResult")
-            .map((m) => m.arguments))
+    yield* Observable(FlutterBlue.instance._methodStream.where((m) => m.method == "ScanResult").map((m) => m.arguments))
         .takeUntil(Observable.merge(killStreams))
         .doOnDone(stopScan)
         .map((buffer) => new protos.ScanResult.fromBuffer(buffer))
@@ -132,12 +131,7 @@ class FlutterBlue {
     List<Guid> withDevices = const [],
     Duration timeout,
   }) async {
-    await scan(
-            scanMode: scanMode,
-            withServices: withServices,
-            withDevices: withDevices,
-            timeout: timeout)
-        .drain();
+    await scan(scanMode: scanMode, withServices: withServices, withDevices: withDevices, timeout: timeout).drain();
     return _scanResults.value;
   }
 
@@ -184,15 +178,7 @@ enum LogLevel {
 }
 
 /// State of the bluetooth adapter.
-enum BluetoothState {
-  unknown,
-  unavailable,
-  unauthorized,
-  turningOn,
-  on,
-  turningOff,
-  off
-}
+enum BluetoothState { unknown, unavailable, unauthorized, turningOn, on, turningOff, off }
 
 class ScanMode {
   const ScanMode(this.value);
@@ -203,7 +189,7 @@ class ScanMode {
   final int value;
 }
 
-class DeviceIdentifier {
+class DeviceIdentifier implements IDeviceIdentifier {
   final String id;
   const DeviceIdentifier(this.id);
 
@@ -214,35 +200,29 @@ class DeviceIdentifier {
   int get hashCode => id.hashCode;
 
   @override
-  bool operator ==(other) =>
-      other is DeviceIdentifier && compareAsciiLowerCase(id, other.id) == 0;
+  bool operator ==(other) => other is DeviceIdentifier && compareAsciiLowerCase(id, other.id) == 0;
 }
 
-class ScanResult {
+class ScanResult implements IScanResult {
   const ScanResult({this.device, this.advertisementData, this.rssi});
 
   ScanResult.fromProto(protos.ScanResult p)
       : device = new BluetoothDevice.fromProto(p.device),
-        advertisementData =
-            new AdvertisementData.fromProto(p.advertisementData),
+        advertisementData = new AdvertisementData.fromProto(p.advertisementData),
         rssi = p.rssi;
 
-  final BluetoothDevice device;
-  final AdvertisementData advertisementData;
+  final IBluetoothDevice device;
+  final IAdvertisementData advertisementData;
   final int rssi;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ScanResult &&
-          runtimeType == other.runtimeType &&
-          device == other.device;
+  bool operator ==(Object other) => identical(this, other) || other is ScanResult && runtimeType == other.runtimeType && device == other.device;
 
   @override
   int get hashCode => device.hashCode;
 }
 
-class AdvertisementData {
+class AdvertisementData implements IAdvertisementData {
   final String localName;
   final int txPowerLevel;
   final bool connectable;
@@ -250,18 +230,11 @@ class AdvertisementData {
   final Map<String, List<int>> serviceData;
   final List<String> serviceUuids;
 
-  AdvertisementData(
-      {this.localName,
-      this.txPowerLevel,
-      this.connectable,
-      this.manufacturerData,
-      this.serviceData,
-      this.serviceUuids});
+  AdvertisementData({this.localName, this.txPowerLevel, this.connectable, this.manufacturerData, this.serviceData, this.serviceUuids});
 
   AdvertisementData.fromProto(protos.AdvertisementData p)
       : localName = p.localName,
-        txPowerLevel =
-            (p.txPowerLevel.hasValue()) ? p.txPowerLevel.value : null,
+        txPowerLevel = (p.txPowerLevel.hasValue()) ? p.txPowerLevel.value : null,
         connectable = p.connectable,
         manufacturerData = p.manufacturerData,
         serviceData = p.serviceData,

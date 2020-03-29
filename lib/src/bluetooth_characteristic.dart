@@ -4,50 +4,43 @@
 
 part of flutter_blue;
 
-class BluetoothCharacteristic {
+class BluetoothCharacteristic implements IBluetoothCharacteristic {
   final Guid uuid;
   final DeviceIdentifier deviceId;
   final Guid serviceUuid;
   final Guid secondaryServiceUuid;
   final CharacteristicProperties properties;
-  final List<BluetoothDescriptor> descriptors;
+  final List<IBluetoothDescriptor> descriptors;
   bool get isNotifying {
     try {
-      var cccd =
-          descriptors.singleWhere((d) => d.uuid == BluetoothDescriptor.cccd);
+      var cccd = descriptors.singleWhere((d) => d.uuid == BluetoothDescriptor.cccd);
       return ((cccd.lastValue[0] & 0x01) > 0 || (cccd.lastValue[0] & 0x02) > 0);
     } catch (e) {
       return false;
     }
   }
 
-  BehaviorSubject<List<int>> _value;
+  BehaviorSubject<List<int>> characteristicInternalValue;
   Stream<List<int>> get value => Observable.merge([
-        _value.stream,
+        characteristicInternalValue.stream,
         _onValueChangedStream,
       ]);
 
-  List<int> get lastValue => _value.value;
+  List<int> get lastValue => characteristicInternalValue.value;
 
   BluetoothCharacteristic.fromProto(protos.BluetoothCharacteristic p)
       : uuid = new Guid(p.uuid),
         deviceId = new DeviceIdentifier(p.remoteId),
         serviceUuid = new Guid(p.serviceUuid),
-        secondaryServiceUuid = (p.secondaryServiceUuid.length > 0)
-            ? new Guid(p.secondaryServiceUuid)
-            : null,
-        descriptors = p.descriptors
-            .map((d) => new BluetoothDescriptor.fromProto(d))
-            .toList(),
+        secondaryServiceUuid = (p.secondaryServiceUuid.length > 0) ? new Guid(p.secondaryServiceUuid) : null,
+        descriptors = p.descriptors.map((d) => new BluetoothDescriptor.fromProto(d)).toList(),
         properties = new CharacteristicProperties.fromProto(p.properties),
-        _value = BehaviorSubject.seeded(p.value);
+        characteristicInternalValue = BehaviorSubject.seeded(p.value);
 
-  Stream<BluetoothCharacteristic> get _onCharacteristicChangedStream =>
-      FlutterBlue.instance._methodStream
+  Stream<BluetoothCharacteristic> get _onCharacteristicChangedStream => FlutterBlue.instance._methodStream
           .where((m) => m.method == "OnCharacteristicChanged")
           .map((m) => m.arguments)
-          .map(
-              (buffer) => new protos.OnCharacteristicChanged.fromBuffer(buffer))
+          .map((buffer) => new protos.OnCharacteristicChanged.fromBuffer(buffer))
           .where((p) => p.remoteId == deviceId.toString())
           .map((p) => new BluetoothCharacteristic.fromProto(p.characteristic))
           .where((c) => c.uuid == uuid)
@@ -59,14 +52,13 @@ class BluetoothCharacteristic {
         return c;
       });
 
-  Stream<List<int>> get _onValueChangedStream =>
-      _onCharacteristicChangedStream.map((c) => c.lastValue);
+  Stream<List<int>> get _onValueChangedStream => _onCharacteristicChangedStream.map((c) => c.lastValue);
 
   void _updateDescriptors(List<BluetoothDescriptor> newDescriptors) {
     for (var d in descriptors) {
       for (var newD in newDescriptors) {
         if (d.uuid == newD.uuid) {
-          d._value.add(newD.lastValue);
+          d.descriptorInternalValue.add(newD.lastValue);
         }
       }
     }
@@ -78,25 +70,20 @@ class BluetoothCharacteristic {
       ..remoteId = deviceId.toString()
       ..characteristicUuid = uuid.toString()
       ..serviceUuid = serviceUuid.toString();
-    FlutterBlue.instance._log(LogLevel.info,
-        'remoteId: ${deviceId.toString()} characteristicUuid: ${uuid.toString()} serviceUuid: ${serviceUuid.toString()}');
+    FlutterBlue.instance._log(LogLevel.info, 'remoteId: ${deviceId.toString()} characteristicUuid: ${uuid.toString()} serviceUuid: ${serviceUuid.toString()}');
 
-    await FlutterBlue.instance._channel
-        .invokeMethod('readCharacteristic', request.writeToBuffer());
+    await FlutterBlue.instance._channel.invokeMethod('readCharacteristic', request.writeToBuffer());
 
     return FlutterBlue.instance._methodStream
         .where((m) => m.method == "ReadCharacteristicResponse")
         .map((m) => m.arguments)
-        .map((buffer) =>
-            new protos.ReadCharacteristicResponse.fromBuffer(buffer))
+        .map((buffer) => new protos.ReadCharacteristicResponse.fromBuffer(buffer))
         .where((p) =>
-            (p.remoteId == request.remoteId) &&
-            (p.characteristic.uuid == request.characteristicUuid) &&
-            (p.characteristic.serviceUuid == request.serviceUuid))
+            (p.remoteId == request.remoteId) && (p.characteristic.uuid == request.characteristicUuid) && (p.characteristic.serviceUuid == request.serviceUuid))
         .map((p) => p.characteristic.value)
         .first
         .then((d) {
-      _value.add(d);
+      characteristicInternalValue.add(d);
       return d;
     });
   }
@@ -107,41 +94,34 @@ class BluetoothCharacteristic {
   /// [CharacteristicWriteType.withResponse]: the method will return after the
   /// write operation has either passed or failed.
   Future<Null> write(List<int> value, {bool withoutResponse = false}) async {
-    final type = withoutResponse
-        ? CharacteristicWriteType.withoutResponse
-        : CharacteristicWriteType.withResponse;
+    final type = withoutResponse ? CharacteristicWriteType.withoutResponse : CharacteristicWriteType.withResponse;
 
     var request = protos.WriteCharacteristicRequest.create()
       ..remoteId = deviceId.toString()
       ..characteristicUuid = uuid.toString()
       ..serviceUuid = serviceUuid.toString()
-      ..writeType =
-          protos.WriteCharacteristicRequest_WriteType.valueOf(type.index)
+      ..writeType = protos.WriteCharacteristicRequest_WriteType.valueOf(type.index)
       ..value = value;
 
-    var result = await FlutterBlue.instance._channel
-        .invokeMethod('writeCharacteristic', request.writeToBuffer());
+    var result = await FlutterBlue.instance._channel.invokeMethod('writeCharacteristic', request.writeToBuffer());
 
     if (type == CharacteristicWriteType.withoutResponse) {
-      _value.add(value);
+      characteristicInternalValue.add(value);
       return result;
     }
 
     return FlutterBlue.instance._methodStream
         .where((m) => m.method == "WriteCharacteristicResponse")
         .map((m) => m.arguments)
-        .map((buffer) =>
-            new protos.WriteCharacteristicResponse.fromBuffer(buffer))
+        .map((buffer) => new protos.WriteCharacteristicResponse.fromBuffer(buffer))
         .where((p) =>
             (p.request.remoteId == request.remoteId) &&
             (p.request.characteristicUuid == request.characteristicUuid) &&
             (p.request.serviceUuid == request.serviceUuid))
         .first
         .then((w) => w.success)
-        .then((success) => (!success)
-            ? throw new Exception('Failed to write the characteristic')
-            : null)
-        .then((_) => _value.add(value))
+        .then((success) => (!success) ? throw new Exception('Failed to write the characteristic') : null)
+        .then((_) => characteristicInternalValue.add(value))
         .then((_) => null);
   }
 
@@ -153,22 +133,19 @@ class BluetoothCharacteristic {
       ..characteristicUuid = uuid.toString()
       ..enable = notify;
 
-    await FlutterBlue.instance._channel
-        .invokeMethod('setNotification', request.writeToBuffer());
+    await FlutterBlue.instance._channel.invokeMethod('setNotification', request.writeToBuffer());
 
     return FlutterBlue.instance._methodStream
         .where((m) => m.method == "SetNotificationResponse")
         .map((m) => m.arguments)
         .map((buffer) => new protos.SetNotificationResponse.fromBuffer(buffer))
         .where((p) =>
-            (p.remoteId == request.remoteId) &&
-            (p.characteristic.uuid == request.characteristicUuid) &&
-            (p.characteristic.serviceUuid == request.serviceUuid))
+            (p.remoteId == request.remoteId) && (p.characteristic.uuid == request.characteristicUuid) && (p.characteristic.serviceUuid == request.serviceUuid))
         .first
         .then((p) => new BluetoothCharacteristic.fromProto(p.characteristic))
         .then((c) {
       _updateDescriptors(c.descriptors);
-      _value.add(c.lastValue);
+      characteristicInternalValue.add(c.lastValue);
       return (c.isNotifying == notify);
     });
   }

@@ -4,7 +4,7 @@
 
 part of flutter_blue;
 
-class BluetoothDescriptor {
+class BluetoothDescriptor implements IBluetoothDescriptor {
   static final Guid cccd = new Guid("00002902-0000-1000-8000-00805f9b34fb");
 
   final Guid uuid;
@@ -12,17 +12,17 @@ class BluetoothDescriptor {
   final Guid serviceUuid;
   final Guid characteristicUuid;
 
-  BehaviorSubject<List<int>> _value;
-  Stream<List<int>> get value => _value.stream;
+  BehaviorSubject<List<int>> descriptorInternalValue;
+  Stream<List<int>> get value => descriptorInternalValue.stream;
 
-  List<int> get lastValue => _value.value;
+  List<int> get lastValue => descriptorInternalValue.value;
 
   BluetoothDescriptor.fromProto(protos.BluetoothDescriptor p)
       : uuid = new Guid(p.uuid),
         deviceId = new DeviceIdentifier(p.remoteId),
         serviceUuid = new Guid(p.serviceUuid),
         characteristicUuid = new Guid(p.characteristicUuid),
-        _value = BehaviorSubject.seeded(p.value);
+        descriptorInternalValue = BehaviorSubject.seeded(p.value);
 
   /// Retrieves the value of a specified descriptor
   Future<List<int>> read() async {
@@ -32,8 +32,7 @@ class BluetoothDescriptor {
       ..characteristicUuid = characteristicUuid.toString()
       ..serviceUuid = serviceUuid.toString();
 
-    await FlutterBlue.instance._channel
-        .invokeMethod('readDescriptor', request.writeToBuffer());
+    await FlutterBlue.instance._channel.invokeMethod('readDescriptor', request.writeToBuffer());
 
     return FlutterBlue.instance._methodStream
         .where((m) => m.method == "ReadDescriptorResponse")
@@ -47,7 +46,7 @@ class BluetoothDescriptor {
         .map((d) => d.value)
         .first
         .then((d) {
-      _value.add(d);
+      descriptorInternalValue.add(d);
       return d;
     });
   }
@@ -61,8 +60,7 @@ class BluetoothDescriptor {
       ..serviceUuid = serviceUuid.toString()
       ..value = value;
 
-    await FlutterBlue.instance._channel
-        .invokeMethod('writeDescriptor', request.writeToBuffer());
+    await FlutterBlue.instance._channel.invokeMethod('writeDescriptor', request.writeToBuffer());
 
     return FlutterBlue.instance._methodStream
         .where((m) => m.method == "WriteDescriptorResponse")
@@ -75,10 +73,8 @@ class BluetoothDescriptor {
             (p.request.serviceUuid == request.serviceUuid))
         .first
         .then((w) => w.success)
-        .then((success) => (!success)
-            ? throw new Exception('Failed to write the descriptor')
-            : null)
-        .then((_) => _value.add(value))
+        .then((success) => (!success) ? throw new Exception('Failed to write the descriptor') : null)
+        .then((_) => descriptorInternalValue.add(value))
         .then((_) => null);
   }
 }

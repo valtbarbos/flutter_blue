@@ -4,7 +4,7 @@
 
 part of flutter_blue;
 
-class BluetoothService {
+class BluetoothService implements IBluetoothService {
   final Guid uuid;
   final DeviceIdentifier deviceId;
   final bool isPrimary;
@@ -15,10 +15,6 @@ class BluetoothService {
       : uuid = new Guid(p.uuid),
         deviceId = new DeviceIdentifier(p.remoteId),
         isPrimary = p.isPrimary,
-        characteristics = p.characteristics
-            .map((c) => new BluetoothCharacteristic.fromProto(c))
-            .toList(),
-        includedServices = p.includedServices
-            .map((s) => new BluetoothService.fromProto(s))
-            .toList();
+        characteristics = p.characteristics.map((c) => new BluetoothCharacteristic.fromProto(c)).toList(),
+        includedServices = p.includedServices.map((s) => new BluetoothService.fromProto(s)).toList();
 }
