@@ -4,7 +4,7 @@
 
 part of flutter_blue;
 
-class BluetoothService {
+class BluetoothService implements IBluetoothService {
   final Guid uuid;
   final DeviceIdentifier deviceId;
   final bool isPrimary;

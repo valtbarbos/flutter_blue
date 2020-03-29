@@ -395,10 +395,10 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
   // Register self as delegate for peripheral
   peripheral.delegate = self;
 
-  // Clear helper arrays and [peripheral discoverServices:nil];
-  [_servicesThatNeedDiscovered removeAllObjects];
-  [_characteristicsThatNeedDiscovered removeAllObjects ];
-  [peripheral discoverServices:nil];
+  if (peripheral.services)
+      [self peripheral:peripheral didDiscoverServices:nil]; //already discovered services, DO NOT re-discover. Just pass along the peripheral.
+  else
+      [peripheral discoverServices:nil]; //yet to discover, normal path. Discover your services needed
   
   // Send initial mtu size
   uint32_t mtu = [self getMtu:peripheral];
@@ -411,7 +411,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 - (void)centralManager:(CBCentralManager *)central didDisconnectPeripheral:(CBPeripheral *)peripheral error:(NSError *)error {
   NSLog(@"didDisconnectPeripheral");
   // Unregister self as delegate for peripheral, not working #42
-  peripheral.delegate = self;
+  peripheral.delegate = nil;
   
   // Try to reconnect
   [self.centralManager connectPeripheral:peripheral options:nil];
