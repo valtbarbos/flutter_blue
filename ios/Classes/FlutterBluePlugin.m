@@ -38,6 +38,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 @property(nonatomic) NSMutableArray *servicesThatNeedDiscovered;
 @property(nonatomic) NSMutableArray *characteristicsThatNeedDiscovered;
 @property(nonatomic) LogLevel logLevel;
+@property(nonatomic) NSString *uniqueId;
 @end
 
 @implementation FlutterBluePlugin
@@ -48,7 +49,6 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
   FlutterEventChannel* stateChannel = [FlutterEventChannel eventChannelWithName:NAMESPACE @"/state" binaryMessenger:[registrar messenger]];
   FlutterBluePlugin* instance = [[FlutterBluePlugin alloc] init];
   instance.channel = channel;
-  instance.centralManager = [[CBCentralManager alloc] initWithDelegate:instance queue:nil];
   instance.scannedPeripherals = [NSMutableDictionary new];
   instance.servicesThatNeedDiscovered = [NSMutableArray new];
   instance.characteristicsThatNeedDiscovered = [NSMutableArray new];
@@ -62,13 +62,28 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
   [registrar addMethodCallDelegate:instance channel:channel];
 }
 
+- (CBCentralManager*)centralManager{
+  if (!_centralManager){
+    _centralManager = [[CBCentralManager alloc] initWithDelegate:self queue:nil
+            options:_uniqueId ? @{CBCentralManagerOptionRestoreIdentifierKey: _uniqueId} : @{}];
+  }
+  return _centralManager;
+}
+
 - (void)handleMethodCall:(FlutterMethodCall*)call result:(FlutterResult)result {
   if ([@"setLogLevel" isEqualToString:call.method]) {
     NSNumber *logLevelIndex = [call arguments];
     _logLevel = (LogLevel)[logLevelIndex integerValue];
     result(nil);
+  } else if([@"setUniqueId" isEqualToString:call.method]) {
+    _uniqueId = [call arguments];
+    if (!_centralManager){
+      result(@(YES));
+    } else {
+      result(@(NO));
+    }
   } else if ([@"state" isEqualToString:call.method]) {
-    FlutterStandardTypedData *data = [self toFlutterData:[self toBluetoothStateProto:self->_centralManager.state]];
+    FlutterStandardTypedData *data = [self toFlutterData:[self toBluetoothStateProto:self.centralManager.state]];
     result(data);
   } else if([@"isAvailable" isEqualToString:call.method]) {
     if(self.centralManager.state != CBManagerStateUnsupported && self.centralManager.state != CBManagerStateUnknown) {
@@ -95,10 +110,10 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
       uuids = [uuids arrayByAddingObject:[CBUUID UUIDWithString:u]];
     }
     // TODO: iOS Scan Options (#35)
-    [self->_centralManager scanForPeripheralsWithServices:uuids options:nil];
+    [self.centralManager scanForPeripheralsWithServices:uuids options:nil];
     result(nil);
   } else if([@"stopScan" isEqualToString:call.method]) {
-    [self->_centralManager stopScan];
+      [self.centralManager stopScan];
     result(nil);
   } else if([@"getConnectedDevices" isEqualToString:call.method]) {
     // Cannot pass blank UUID list for security reasons. Assume all devices have the Generic Access service 0x1800
@@ -117,7 +132,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
                                    details:nil];
       }
       // TODO: Implement Connect options (#36)
-      [_centralManager connectPeripheral:peripheral options:nil];
+      [self.centralManager connectPeripheral:peripheral options:nil];
       result(nil);
     } @catch(FlutterError *e) {
       result(e);
@@ -126,7 +141,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     NSString *remoteId = [call arguments];
     @try {
       CBPeripheral *peripheral = [self findPeripheral:remoteId];
-      [_centralManager cancelPeripheralConnection:peripheral];
+      [self.centralManager cancelPeripheralConnection:peripheral];
       result(nil);
     } @catch(FlutterError *e) {
       result(e);
@@ -256,7 +271,7 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 }
 
 - (CBPeripheral*)findPeripheral:(NSString*)remoteId {
-  NSArray<CBPeripheral*> *peripherals = [_centralManager retrievePeripheralsWithIdentifiers:@[[[NSUUID alloc] initWithUUIDString:remoteId]]];
+  NSArray<CBPeripheral*> *peripherals = [self.centralManager retrievePeripheralsWithIdentifiers:@[[[NSUUID alloc] initWithUUIDString:remoteId]]];
   CBPeripheral *peripheral;
   for(CBPeripheral *p in peripherals) {
     if([[p.identifier UUIDString] isEqualToString:remoteId]) {
@@ -359,10 +374,14 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 //
 - (void)centralManagerDidUpdateState:(nonnull CBCentralManager *)central {
   if(_stateStreamHandler.sink != nil) {
-    FlutterStandardTypedData *data = [self toFlutterData:[self toBluetoothStateProto:self->_centralManager.state]];
+    FlutterStandardTypedData *data = [self toFlutterData:[self toBluetoothStateProto:self.centralManager.state]];
     self.stateStreamHandler.sink(data);
   }
 }
+
+- (void)centralManager:(CBCentralManager *)central willRestoreState:(NSDictionary<NSString *, id> *)dict {
+}
+
 
 - (void)centralManager:(CBCentralManager *)central didDiscoverPeripheral:(CBPeripheral *)peripheral advertisementData:(NSDictionary<NSString *,id> *)advertisementData RSSI:(NSNumber *)RSSI {
   [self.scannedPeripherals setObject:peripheral
