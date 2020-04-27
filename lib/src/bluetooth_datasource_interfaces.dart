@@ -1,8 +1,7 @@
 part of flutter_blue;
 
 abstract class IBluetoothCharacteristic {
-  IBluetoothCharacteristic(
-      this.uuid, this.deviceId, this.serviceUuid, this.secondaryServiceUuid, this.properties, this.descriptors, this.characteristicInternalValue);
+  IBluetoothCharacteristic(this.uuid, this.deviceId, this.serviceUuid, this.secondaryServiceUuid, this.properties, this.descriptors);
 
   final Guid uuid;
   final IDeviceIdentifier deviceId;
@@ -13,7 +12,6 @@ abstract class IBluetoothCharacteristic {
 
   bool get isNotifying;
 
-  final BehaviorSubject<List<int>> characteristicInternalValue;
   Stream<List<int>> get value;
 
   List<int> get lastValue;
@@ -53,11 +51,14 @@ abstract class IDeviceBluetoothDataSource {
   });
 
   Future stopScan();
+
+  Future restartBluetoothAdapter();
+
   void setLogLevel(LogLevel level);
 }
 
 abstract class IBluetoothDescriptor {
-  IBluetoothDescriptor(this.uuid, this.deviceId, this.serviceUuid, this.characteristicUuid, this.descriptorInternalValue);
+  IBluetoothDescriptor(this.uuid, this.deviceId, this.serviceUuid, this.characteristicUuid, this._value);
 
   static Guid cccd;
   final Guid uuid;
@@ -65,7 +66,7 @@ abstract class IBluetoothDescriptor {
   final Guid serviceUuid;
   final Guid characteristicUuid;
 
-  final BehaviorSubject<List<int>> descriptorInternalValue;
+  final BehaviorSubject<List<int>> _value;
   List<int> get lastValue;
   Stream<List<int>> get value;
 

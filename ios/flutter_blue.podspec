@@ -21,7 +21,7 @@ Bluetooth Low Energy plugin for Flutter.
 
   s.subspec "Protos" do |ss|
     ss.source_files = "gen/*.pbobjc.{h,m}", "gen/**/*.pbobjc.{h,m}"
-    ss.header_mappings_dir = "gen"
+    ss.header_mappings_dir = '.' # ss.header_mappings_dir = "gen" => https://github.com/pauldemarco/flutter_blue/issues/504
     ss.requires_arc = false
     ss.dependency "Protobuf", '~> 3.11.4'
   end
