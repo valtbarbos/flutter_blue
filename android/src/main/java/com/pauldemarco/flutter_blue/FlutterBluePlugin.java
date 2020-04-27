@@ -89,6 +89,8 @@ public class FlutterBluePlugin
     // needed
     private MethodCall pendingCall;
     private Result pendingResult;
+    private ArrayList<String> macDeviceScanned = new ArrayList<>();
+    private boolean allowDuplicates = false;
 
     /**
      * Plugin registration.
@@ -776,6 +778,8 @@ public class FlutterBluePlugin
         Protos.ScanSettings settings;
         try {
             settings = Protos.ScanSettings.newBuilder().mergeFrom(data).build();
+            allowDuplicates = settings.getAllowDuplicates();
+            macDeviceScanned.clear();
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 startScan21(settings);
             } else {
@@ -805,6 +809,10 @@ public class FlutterBluePlugin
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
                     super.onScanResult(callbackType, result);
+                    if (!allowDuplicates && result != null && result.getDevice() != null && result.getDevice().getAddress() != null) {
+                        if (macDeviceScanned.contains(result.getDevice().getAddress())) return;
+                        macDeviceScanned.add(result.getDevice().getAddress());
+                    }
                     Protos.ScanResult scanResult = ProtoMaker.from(result.getDevice(), result);
                     invokeMethodUIThread("ScanResult", scanResult.toByteArray());
                 }
@@ -854,7 +862,13 @@ public class FlutterBluePlugin
         if (scanCallback18 == null) {
             scanCallback18 = new BluetoothAdapter.LeScanCallback() {
                 @Override
-                public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
+                public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi,
+                                     byte[] scanRecord) {
+                    if (!allowDuplicates && bluetoothDevice != null && bluetoothDevice.getAddress() != null) {
+                        if (macDeviceScanned.contains(bluetoothDevice.getAddress())) return;
+                        macDeviceScanned.add(bluetoothDevice.getAddress());
+                    }
+
                     Protos.ScanResult scanResult = ProtoMaker.from(bluetoothDevice, scanRecord, rssi);
                     invokeMethodUIThread("ScanResult", scanResult.toByteArray());
                 }
