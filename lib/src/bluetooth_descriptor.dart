@@ -12,17 +12,17 @@ class BluetoothDescriptor implements IBluetoothDescriptor {
   final Guid serviceUuid;
   final Guid characteristicUuid;
 
-  BehaviorSubject<List<int>> descriptorInternalValue;
-  Stream<List<int>> get value => descriptorInternalValue.stream;
+  BehaviorSubject<List<int>> _value;
+  Stream<List<int>> get value => _value.stream;
 
-  List<int> get lastValue => descriptorInternalValue.value;
+  List<int> get lastValue => _value.value;
 
   BluetoothDescriptor.fromProto(protos.BluetoothDescriptor p)
       : uuid = new Guid(p.uuid),
         deviceId = new DeviceIdentifier(p.remoteId),
         serviceUuid = new Guid(p.serviceUuid),
         characteristicUuid = new Guid(p.characteristicUuid),
-        descriptorInternalValue = BehaviorSubject.seeded(p.value);
+        _value = BehaviorSubject.seeded(p.value);
 
   /// Retrieves the value of a specified descriptor
   Future<List<int>> read() async {
@@ -46,7 +46,7 @@ class BluetoothDescriptor implements IBluetoothDescriptor {
         .map((d) => d.value)
         .first
         .then((d) {
-      descriptorInternalValue.add(d);
+      _value.add(d);
       return d;
     });
   }
@@ -74,7 +74,7 @@ class BluetoothDescriptor implements IBluetoothDescriptor {
         .first
         .then((w) => w.success)
         .then((success) => (!success) ? throw new Exception('Failed to write the descriptor') : null)
-        .then((_) => descriptorInternalValue.add(value))
+        .then((_) => _value.add(value))
         .then((_) => null);
   }
 

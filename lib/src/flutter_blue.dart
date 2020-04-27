@@ -70,7 +70,7 @@ class FlutterBlue implements IDeviceBluetoothDataSource {
         .then((p) => p.devices)
         .then((p) => p.map((d) => BluetoothDevice.fromProto(d)).toList());
   }
- 
+
   _setLogLevelIfAvailable() async {
     if (await isAvailable) {
       // Send the log level to the underlying platforms.
@@ -120,6 +120,7 @@ class FlutterBlue implements IDeviceBluetoothDataSource {
         .map((m) => m.arguments)
         .takeUntil(Rx.merge(killStreams))
         .doOnDone(stopScan)
+        .doOnCancel(stopScan)
         .map((buffer) => new protos.ScanResult.fromBuffer(buffer))
         .map((p) {
       final result = new ScanResult.fromProto(p);
@@ -148,6 +149,13 @@ class FlutterBlue implements IDeviceBluetoothDataSource {
   /// Stops a scan for Bluetooth Low Energy devices
   Future stopScan() async {
     await _channel.invokeMethod('stopScan');
+    _stopScanPill.add(null);
+    _isScanning.add(false);
+  }
+
+  /// Restart ONLY to Android Devices
+  Future restartBluetoothAdapter() async {
+    await _channel.invokeMethod('restart');
     _stopScanPill.add(null);
     _isScanning.add(false);
   }

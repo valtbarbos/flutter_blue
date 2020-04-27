@@ -61,9 +61,9 @@ import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener;
 
-
 /** FlutterBluePlugin */
-public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCallHandler, RequestPermissionsResultListener  {
+public class FlutterBluePlugin
+        implements FlutterPlugin, ActivityAware, MethodCallHandler, RequestPermissionsResultListener {
     private static final String TAG = "FlutterBluePlugin";
     private static FlutterBluePlugin instance;
     private Object initializationLock = new Object();
@@ -105,7 +105,8 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         instance.setup(registrar.messenger(), application, activity, registrar, null);
     }
 
-    public FlutterBluePlugin() {}
+    public FlutterBluePlugin() {
+    }
 
     @Override
     public void onAttachedToEngine(FlutterPluginBinding binding) {
@@ -121,12 +122,8 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
     @Override
     public void onAttachedToActivity(ActivityPluginBinding binding) {
         activityBinding = binding;
-        setup(
-                pluginBinding.getBinaryMessenger(),
-                (Application) pluginBinding.getApplicationContext(),
-                activityBinding.getActivity(),
-                null,
-                activityBinding);
+        setup(pluginBinding.getBinaryMessenger(), (Application) pluginBinding.getApplicationContext(),
+                activityBinding.getActivity(), null, activityBinding);
     }
 
     @Override
@@ -144,12 +141,8 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         onAttachedToActivity(binding);
     }
 
-    private void setup(
-            final BinaryMessenger messenger,
-            final Application application,
-            final Activity activity,
-            final PluginRegistry.Registrar registrar,
-            final ActivityPluginBinding activityBinding) {
+    private void setup(final BinaryMessenger messenger, final Application application, final Activity activity,
+            final PluginRegistry.Registrar registrar, final ActivityPluginBinding activityBinding) {
         synchronized (initializationLock) {
             Log.i(TAG, "setup");
             this.activity = activity;
@@ -184,7 +177,6 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         application = null;
     }
 
-
     @Override
     public void onMethodCall(MethodCall call, Result result) {
         if (mBluetoothAdapter == null && !"isAvailable".equals(call.method)) {
@@ -201,6 +193,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "state": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => state");
             Protos.BluetoothState.Builder p = Protos.BluetoothState.newBuilder();
             try {
                 switch (mBluetoothAdapter.getState()) {
@@ -228,6 +221,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "isAvailable": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => isAvailable");
             result.success(mBluetoothAdapter != null);
             break;
         }
@@ -238,15 +232,10 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "startScan": {
-            if (ContextCompat.checkSelfPermission(registrar.activeContext(),
-                    Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                Activity activity = registrar.activity();
-                if (activity == null) {
-                    log(LogLevel.ERROR, "Can't request permissions without activity");
-                    return;
-                }
-                ActivityCompat.requestPermissions(activity, new String[] { Manifest.permission.ACCESS_COARSE_LOCATION },
-                        REQUEST_COARSE_LOCATION_PERMISSIONS);
+            if (ContextCompat.checkSelfPermission(activity,
+                    Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(activity, new String[] { Manifest.permission.ACCESS_FINE_LOCATION },
+                        REQUEST_FINE_LOCATION_PERMISSIONS);
                 pendingCall = call;
                 pendingResult = result;
                 break;
@@ -262,6 +251,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "getConnectedDevices": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => getConnectedDevices");
             List<BluetoothDevice> devices = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
             Protos.ConnectedDevicesResponse.Builder p = Protos.ConnectedDevicesResponse.newBuilder();
             for (BluetoothDevice d : devices) {
@@ -294,33 +284,33 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
             // If device was connected to previously but is now disconnected, attempt a
             // reconnect
             if (mDevices.containsKey(deviceId) && !isConnected) {
+                log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => connect: reconnect");
                 if (mDevices.get(deviceId).gatt.connect()) {
                     result.success(null);
                 } else {
+                    log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: reconnect fail");
                     int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
+                    log(LogLevel.DEBUG,
+                            "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: state = " + state);
                     BluetoothDeviceCache cache = mDevices.remove(deviceId);
+                    log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: mDevices.remove("
+                            + deviceId + ")");
                     if (cache != null) {
                         BluetoothGatt gattServer = cache.gatt;
                         gattServer.disconnect();
-                        if (state == BluetoothProfile.STATE_DISCONNECTED) {
-                            gattServer.close();
-                        }
+                        log(LogLevel.DEBUG,
+                                "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: gattServer.disconnect()");
                     }
-                    //result.success(null);
-                    //onMethodCall(call, result);
-                    result.error("reconnect_error", "error when reconnecting to device, but try again because I remove it from cache", null);
                 }
-                return;
             }
 
             // New request, connect and add gattServer to Map
             BluetoothGatt gattServer;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                gattServer = device.connectGatt(registrar.activeContext(), options.getAndroidAutoConnect(),
-                        mGattCallback, BluetoothDevice.TRANSPORT_LE);
+                gattServer = device.connectGatt(activity, options.getAndroidAutoConnect(), mGattCallback,
+                        BluetoothDevice.TRANSPORT_LE);
             } else {
-                gattServer = device.connectGatt(registrar.activeContext(), options.getAndroidAutoConnect(),
-                        mGattCallback);
+                gattServer = device.connectGatt(activity, options.getAndroidAutoConnect(), mGattCallback);
             }
             mDevices.put(deviceId, new BluetoothDeviceCache(gattServer));
             result.success(null);
@@ -328,6 +318,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "disconnect": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => disconnect");
             String deviceId = (String) call.arguments;
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(deviceId);
             int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
@@ -335,6 +326,8 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
             if (cache != null) {
                 BluetoothGatt gattServer = cache.gatt;
                 gattServer.disconnect();
+                log(LogLevel.DEBUG,
+                        "Class: FlutterBluePlugin, Method: onMethodCall => disconnect: gattServer.disconnect()");
                 if (state == BluetoothProfile.STATE_DISCONNECTED) {
                     gattServer.close();
                 }
@@ -343,7 +336,15 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
             break;
         }
 
+        case "restart": {
+            mBluetoothAdapter.disable();
+            mBluetoothAdapter.enable();
+            result.success(null);
+            break;
+        }
+
         case "deviceState": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => deviceState");
             String deviceId = (String) call.arguments;
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(deviceId);
             int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
@@ -356,6 +357,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         }
 
         case "discoverServices": {
+            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => discoverServices");
             String deviceId = (String) call.arguments;
             try {
                 BluetoothGatt gatt = locateGatt(deviceId);
@@ -662,8 +664,7 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
     }
 
     @Override
-    public boolean onRequestPermissionsResult(
-            int requestCode, String[] permissions, int[] grantResults) {
+    public boolean onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == REQUEST_FINE_LOCATION_PERMISSIONS) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startScan(pendingCall, pendingResult);
@@ -760,13 +761,13 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
         public void onListen(Object o, EventChannel.EventSink eventSink) {
             sink = eventSink;
             IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-            registrar.activeContext().registerReceiver(mReceiver, filter);
+            activity.registerReceiver(mReceiver, filter);
         }
 
         @Override
         public void onCancel(Object o) {
             sink = null;
-            registrar.activeContext().unregisterReceiver(mReceiver);
+            activity.unregisterReceiver(mReceiver);
         }
     };
 
@@ -1020,7 +1021,6 @@ public class FlutterBluePlugin implements FlutterPlugin, ActivityAware, MethodCa
     }
 
     private void invokeMethodUIThread(final String name, final byte[] byteArray) {
-        Activity activity = registrar.activity();
         if (activity == null) {
             channel.invokeMethod(name, byteArray);
         } else {

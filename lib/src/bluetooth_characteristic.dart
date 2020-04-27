@@ -26,7 +26,7 @@ class BluetoothCharacteristic implements IBluetoothCharacteristic {
         _onValueChangedStream,
       ]);
 
-  List<int> get lastValue => characteristicInternalValue.value;
+  List<int> get lastValue => _value.value;
 
   BluetoothCharacteristic.fromProto(protos.BluetoothCharacteristic p)
       : uuid = new Guid(p.uuid),
@@ -35,7 +35,7 @@ class BluetoothCharacteristic implements IBluetoothCharacteristic {
         secondaryServiceUuid = (p.secondaryServiceUuid.length > 0) ? new Guid(p.secondaryServiceUuid) : null,
         descriptors = p.descriptors.map((d) => new BluetoothDescriptor.fromProto(d)).toList(),
         properties = new CharacteristicProperties.fromProto(p.properties),
-        characteristicInternalValue = BehaviorSubject.seeded(p.value);
+        _value = BehaviorSubject.seeded(p.value);
 
   Stream<BluetoothCharacteristic> get _onCharacteristicChangedStream => FlutterBlue.instance._methodStream
           .where((m) => m.method == "OnCharacteristicChanged")
@@ -56,7 +56,7 @@ class BluetoothCharacteristic implements IBluetoothCharacteristic {
     for (var d in descriptors) {
       for (var newD in newDescriptors) {
         if (d.uuid == newD.uuid) {
-          d.descriptorInternalValue.add(newD.lastValue);
+          d._value.add(newD.lastValue);
         }
       }
     }
@@ -81,7 +81,7 @@ class BluetoothCharacteristic implements IBluetoothCharacteristic {
         .map((p) => p.characteristic.value)
         .first
         .then((d) {
-      characteristicInternalValue.add(d);
+      _value.add(d);
       return d;
     });
   }
@@ -117,9 +117,7 @@ class BluetoothCharacteristic implements IBluetoothCharacteristic {
             (p.request.serviceUuid == request.serviceUuid))
         .first
         .then((w) => w.success)
-        .then((success) => (!success)
-            ? throw new Exception('Failed to write the characteristic')
-            : null)
+        .then((success) => (!success) ? throw new Exception('Failed to write the characteristic') : null)
         .then((_) => null);
   }
 
