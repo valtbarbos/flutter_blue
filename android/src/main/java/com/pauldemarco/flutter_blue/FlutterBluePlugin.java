@@ -195,7 +195,7 @@ public class FlutterBluePlugin
         }
 
         case "state": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => state");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => state");
             Protos.BluetoothState.Builder p = Protos.BluetoothState.newBuilder();
             try {
                 switch (mBluetoothAdapter.getState()) {
@@ -223,7 +223,7 @@ public class FlutterBluePlugin
         }
 
         case "isAvailable": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => isAvailable");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => isAvailable");
             result.success(mBluetoothAdapter != null);
             break;
         }
@@ -234,6 +234,7 @@ public class FlutterBluePlugin
         }
 
         case "startScan": {
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => startScan");
             if (ContextCompat.checkSelfPermission(activity,
                     Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(activity, new String[] { Manifest.permission.ACCESS_FINE_LOCATION },
@@ -247,13 +248,14 @@ public class FlutterBluePlugin
         }
 
         case "stopScan": {
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => stopScan");
             stopScan();
             result.success(null);
             break;
         }
 
         case "getConnectedDevices": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => getConnectedDevices");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => getConnectedDevices");
             List<BluetoothDevice> devices = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
             Protos.ConnectedDevicesResponse.Builder p = Protos.ConnectedDevicesResponse.newBuilder();
             for (BluetoothDevice d : devices) {
@@ -286,17 +288,19 @@ public class FlutterBluePlugin
             // If device was connected to previously but is now disconnected, attempt a
             // reconnect
             if (mDevices.containsKey(deviceId) && !isConnected) {
-                log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => connect: reconnect");
+                log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => connect: reconnect");
                 if (mDevices.get(deviceId).gatt.connect()) {
                     result.success(null);
                 } else {
-                    log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: reconnect fail");
+                    log(LogLevel.DEBUG,
+                            "\nClass: FlutterBluePlugin, Method: onMethodCall => reconnect: reconnect fail");
                     int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
                     log(LogLevel.DEBUG,
                             "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: state = " + state);
                     BluetoothDeviceCache cache = mDevices.remove(deviceId);
-                    log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: mDevices.remove("
-                            + deviceId + ")");
+                    log(LogLevel.DEBUG,
+                            "\nClass: FlutterBluePlugin, Method: onMethodCall => reconnect: mDevices.remove(" + deviceId
+                                    + ")");
                     if (cache != null) {
                         BluetoothGatt gattServer = cache.gatt;
                         gattServer.disconnect();
@@ -320,7 +324,7 @@ public class FlutterBluePlugin
         }
 
         case "disconnect": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => disconnect");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => disconnect");
             String deviceId = (String) call.arguments;
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(deviceId);
             int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
@@ -346,7 +350,7 @@ public class FlutterBluePlugin
         }
 
         case "deviceState": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => deviceState");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => deviceState");
             String deviceId = (String) call.arguments;
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(deviceId);
             int state = mBluetoothManager.getConnectionState(device, BluetoothProfile.GATT);
@@ -359,7 +363,7 @@ public class FlutterBluePlugin
         }
 
         case "discoverServices": {
-            log(LogLevel.DEBUG, "Class: FlutterBluePlugin, Method: onMethodCall => discoverServices");
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => discoverServices");
             String deviceId = (String) call.arguments;
             try {
                 BluetoothGatt gatt = locateGatt(deviceId);
@@ -809,8 +813,18 @@ public class FlutterBluePlugin
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
                     super.onScanResult(callbackType, result);
-                    if (!allowDuplicates && result != null && result.getDevice() != null && result.getDevice().getAddress() != null) {
-                        if (macDeviceScanned.contains(result.getDevice().getAddress())) return;
+                    log(LogLevel.DEBUG,
+                            "Class: FlutterBluePlugin, Method: getScanCallback21 | \nallowDuplicates:" + allowDuplicates
+                                    + "\nresult != null: " + (result != null) + "\nresult.getDevice() != null: "
+                                    + (result.getDevice() != null) + "\nresult.getDevice().getAddress() != null: "
+                                    + (result.getDevice().getAddress() != null)
+                                    + "\nmacDeviceScanned.contains(result.getDevice().getAddress()): "
+                                    + (macDeviceScanned.contains(result.getDevice().getAddress())));
+
+                    if (!allowDuplicates && result != null && result.getDevice() != null
+                            && result.getDevice().getAddress() != null) {
+                        if (macDeviceScanned.contains(result.getDevice().getAddress()))
+                            return;
                         macDeviceScanned.add(result.getDevice().getAddress());
                     }
                     Protos.ScanResult scanResult = ProtoMaker.from(result.getDevice(), result);
@@ -834,18 +848,29 @@ public class FlutterBluePlugin
 
     @TargetApi(21)
     private void startScan21(Protos.ScanSettings proto) throws IllegalStateException {
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan21");
         BluetoothLeScanner scanner = mBluetoothAdapter.getBluetoothLeScanner();
         if (scanner == null)
             throw new IllegalStateException("getBluetoothLeScanner() is null. Is the Adapter on?");
+
         int scanMode = proto.getAndroidScanMode();
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan21 | scanMode: " + scanMode);
+
         int count = proto.getServiceUuidsCount();
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan21 | count: " + count);
+
         List<ScanFilter> filters = new ArrayList<>(count);
+
         for (int i = 0; i < count; i++) {
             String uuid = proto.getServiceUuids(i);
             ScanFilter f = new ScanFilter.Builder().setServiceUuid(ParcelUuid.fromString(uuid)).build();
             filters.add(f);
         }
+
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan21 | filters: " + filters);
+
         ScanSettings settings = new ScanSettings.Builder().setScanMode(scanMode).build();
+
         scanner.startScan(filters, settings, getScanCallback21());
     }
 
@@ -862,10 +887,18 @@ public class FlutterBluePlugin
         if (scanCallback18 == null) {
             scanCallback18 = new BluetoothAdapter.LeScanCallback() {
                 @Override
-                public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi,
-                                     byte[] scanRecord) {
+                public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
+                    log(LogLevel.DEBUG,
+                            "Class: FlutterBluePlugin, Method: getScanCallback18 | \nallowDuplicates:" + allowDuplicates
+                                    + "\nbluetoothDevice != null: " + (bluetoothDevice != null)
+                                    + "\nbluetoothDevice.getAddress(): " + (bluetoothDevice.getAddress())
+                                    + "\nmacDeviceScanned.contains(bluetoothDevice.getAddress()): "
+                                    + (macDeviceScanned.contains(bluetoothDevice.getAddress())));
+
                     if (!allowDuplicates && bluetoothDevice != null && bluetoothDevice.getAddress() != null) {
-                        if (macDeviceScanned.contains(bluetoothDevice.getAddress())) return;
+                        if (macDeviceScanned.contains(bluetoothDevice.getAddress())) {
+                            return;
+                        }
                         macDeviceScanned.add(bluetoothDevice.getAddress());
                     }
 
@@ -878,12 +911,24 @@ public class FlutterBluePlugin
     }
 
     private void startScan18(Protos.ScanSettings proto) throws IllegalStateException {
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan18");
+
         List<String> serviceUuids = proto.getServiceUuidsList();
+        log(LogLevel.DEBUG,
+                "Class: FlutterBluePlugin, Method: startScan18 => proto.getServiceUuidsList() + " + serviceUuids);
+
         UUID[] uuids = new UUID[serviceUuids.size()];
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan18 => UUID[serviceUuids.size()]: "
+                + (serviceUuids.size()) + " Uuids: " + uuids);
+
         for (int i = 0; i < serviceUuids.size(); i++) {
             uuids[i] = UUID.fromString(serviceUuids.get(i));
+            log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan18 => uuids[i]: " + uuids[i]);
         }
+
         boolean success = mBluetoothAdapter.startLeScan(uuids, getScanCallback18());
+        log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: startScan18 => success: " + success);
+
         if (!success)
             throw new IllegalStateException("getBluetoothLeScanner() is null. Is the Adapter on?");
     }
