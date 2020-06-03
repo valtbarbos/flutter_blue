@@ -279,6 +279,16 @@ public class FlutterBluePlugin
             BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(deviceId);
             boolean isConnected = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT).contains(device);
 
+            for (BluetoothDeviceCache cache : mDevices.values()) {
+                log(LogLevel.DEBUG,
+                        "Class: FlutterBluePlugin, Method: onMethodCall => connect: BluetoothDeviceCache => gattServer.disconnect()");
+                BluetoothGatt gattServer = cache.gatt;
+                gattServer.disconnect();
+                gattServer.close();
+            }
+
+            mDevices.clear();
+
             // If device is already connected, return error
             if (mDevices.containsKey(deviceId) && isConnected) {
                 result.error("already_connected", "connection with device already exists", null);
@@ -308,6 +318,7 @@ public class FlutterBluePlugin
                                 "Class: FlutterBluePlugin, Method: onMethodCall => reconnect: gattServer.disconnect()");
                     }
                 }
+                return;
             }
 
             // New request, connect and add gattServer to Map
@@ -813,13 +824,15 @@ public class FlutterBluePlugin
                 @Override
                 public void onScanResult(int callbackType, ScanResult result) {
                     super.onScanResult(callbackType, result);
-                    log(LogLevel.DEBUG,
-                            "Class: FlutterBluePlugin, Method: getScanCallback21 | \nallowDuplicates:" + allowDuplicates
-                                    + "\nresult != null: " + (result != null) + "\nresult.getDevice() != null: "
-                                    + (result.getDevice() != null) + "\nresult.getDevice().getAddress() != null: "
-                                    + (result.getDevice().getAddress() != null)
-                                    + "\nmacDeviceScanned.contains(result.getDevice().getAddress()): "
-                                    + (macDeviceScanned.contains(result.getDevice().getAddress())));
+                    // log(LogLevel.DEBUG,
+                    // "Class: FlutterBluePlugin, Method: getScanCallback21 | \nallowDuplicates:" +
+                    // allowDuplicates
+                    // + "\nresult != null: " + (result != null) + "\nresult.getDevice() != null: "
+                    // + (result.getDevice() != null) + "\nresult.getDevice().getAddress() != null:
+                    // "
+                    // + (result.getDevice().getAddress() != null)
+                    // + "\nmacDeviceScanned.contains(result.getDevice().getAddress()): "
+                    // + (macDeviceScanned.contains(result.getDevice().getAddress())));
 
                     if (!allowDuplicates && result != null && result.getDevice() != null
                             && result.getDevice().getAddress() != null) {
@@ -888,12 +901,13 @@ public class FlutterBluePlugin
             scanCallback18 = new BluetoothAdapter.LeScanCallback() {
                 @Override
                 public void onLeScan(final BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
-                    log(LogLevel.DEBUG,
-                            "Class: FlutterBluePlugin, Method: getScanCallback18 | \nallowDuplicates:" + allowDuplicates
-                                    + "\nbluetoothDevice != null: " + (bluetoothDevice != null)
-                                    + "\nbluetoothDevice.getAddress(): " + (bluetoothDevice.getAddress())
-                                    + "\nmacDeviceScanned.contains(bluetoothDevice.getAddress()): "
-                                    + (macDeviceScanned.contains(bluetoothDevice.getAddress())));
+                    // log(LogLevel.DEBUG,
+                    // "Class: FlutterBluePlugin, Method: getScanCallback18 | \nallowDuplicates:" +
+                    // allowDuplicates
+                    // + "\nbluetoothDevice != null: " + (bluetoothDevice != null)
+                    // + "\nbluetoothDevice.getAddress(): " + (bluetoothDevice.getAddress())
+                    // + "\nmacDeviceScanned.contains(bluetoothDevice.getAddress()): "
+                    // + (macDeviceScanned.contains(bluetoothDevice.getAddress())));
 
                     if (!allowDuplicates && bluetoothDevice != null && bluetoothDevice.getAddress() != null) {
                         if (macDeviceScanned.contains(bluetoothDevice.getAddress())) {

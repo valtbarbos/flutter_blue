@@ -42,6 +42,11 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 @end
 
 @implementation FlutterBluePlugin
+{
+    @private BOOL disconnectDevice;
+}
+
+
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
   FlutterMethodChannel* channel = [FlutterMethodChannel
                                    methodChannelWithName:NAMESPACE @"/methods"
@@ -128,6 +133,8 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
     ProtosConnectRequest *request = [[ProtosConnectRequest alloc] initWithData:[data data] error:nil];
     NSString *remoteId = [request remoteId];
     @try {
+      disconnectDevice = false;
+      
       CBPeripheral *peripheral = [_scannedPeripherals objectForKey:remoteId];
       if(peripheral == nil) {
         @throw [FlutterError errorWithCode:@"connect"
@@ -143,6 +150,8 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
   } else if([@"disconnect" isEqualToString:call.method]) {
     NSString *remoteId = [call arguments];
     @try {
+      disconnectDevice = true;
+      
       CBPeripheral *peripheral = [self findPeripheral:remoteId];
       [self.centralManager cancelPeripheralConnection:peripheral];
       result(nil);
@@ -413,11 +422,17 @@ typedef NS_ENUM(NSUInteger, LogLevel) {
 
 - (void)centralManager:(CBCentralManager *)central didDisconnectPeripheral:(CBPeripheral *)peripheral error:(NSError *)error {
   NSLog(@"didDisconnectPeripheral");
+  
   // Unregister self as delegate for peripheral, not working #42
   peripheral.delegate = nil;
   
-  // Try to reconnect
-  [self.centralManager connectPeripheral:peripheral options:nil];
+  // If user dont want to disconnect... this case is a auto-reconnect
+  if (!disconnectDevice){
+    // Try to reconnect
+    [self.centralManager connectPeripheral:peripheral options:nil];
+  }else{
+    disconnectDevice = false;
+  }
 
   // Send connection state
   [_channel invokeMethod:@"DeviceState" arguments:[self toFlutterData:[self toDeviceStateProto:peripheral state:peripheral.state]]];
