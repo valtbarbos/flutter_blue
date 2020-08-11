@@ -256,10 +256,20 @@ public class FlutterBluePlugin
 
         case "getConnectedDevices": {
             log(LogLevel.DEBUG, "\nClass: FlutterBluePlugin, Method: onMethodCall => getConnectedDevices");
-            List<BluetoothDevice> devices = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
+
             Protos.ConnectedDevicesResponse.Builder p = Protos.ConnectedDevicesResponse.newBuilder();
+            
+            // Samsung SM-G935F -> Returns devices AFTER disconnection...
+            if (mDevices == null || mDevices.isEmpty()) {
+                result.success(p.build().toByteArray());
+                break;
+            }
+
+            List<BluetoothDevice> devices = mBluetoothManager.getConnectedDevices(BluetoothProfile.GATT);
             for (BluetoothDevice d : devices) {
-                p.addDevices(ProtoMaker.from(d));
+                if (mDevices.containsKey(d.getAddress())) {
+                    p.addDevices(ProtoMaker.from(d));
+                }
             }
             result.success(p.build().toByteArray());
             log(LogLevel.EMERGENCY, "mDevices size: " + mDevices.size());
